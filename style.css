@@ -7,3 +7,5 @@ main{width:min(100%,700px,calc(100svh - 330px));min-width:300px;padding:12px 12p
 .piece-wrap{display:grid;grid-template-rows:108px 40px;row-gap:12px;justify-items:center;align-items:center;flex:1 1 0}
 .piece-wrap>.slot{height:108px;min-height:108px;max-height:108px;flex-shrink:0;overflow:hidden}
 .piece-wrap>.rotate{height:40px;min-height:40px;margin:0;align-self:center;position:relative}
+
+#tray{min-height:132px;padding:12px 0}.piece-wrap{grid-template-rows:108px;row-gap:0}
