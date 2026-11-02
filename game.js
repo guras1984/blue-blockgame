@@ -24,8 +24,18 @@ function clearEffects(rows,cols){
  const label=document.createElement('div');label.className='score-burst';label.textContent=`+${(rows.length+cols.length)*100*combo}`;play.append(label);setTimeout(()=>label.remove(),850);
  tone(180);setTimeout(()=>tone(740),45);setTimeout(()=>tone(980),95);if(rows.length+cols.length>1||combo>1)setTimeout(()=>tone(1240),145);
 }
-function makePiece(){return {shape:SHAPES[Math.floor(Math.random()*SHAPES.length)],color:COLORS[Math.floor(Math.random()*COLORS.length)]}}
-function deal(){hand=Array.from({length:3},makePiece);if(!hand.some(p=>canRotatePlace(p.shape))){const options=SHAPES.filter(s=>canRotatePlace(s));if(options.length)hand[0]={shape:options[Math.floor(Math.random()*options.length)],color:COLORS[0]}}}
+// Weights are per shape: introduce larger pieces gradually as score grows.
+function shapeWeight(shape,points=score){
+ const n=shape.length,long=Math.max(...shape.map(c=>c[0]),...shape.map(c=>c[1]))>=3;
+ if(points<500)return n<=3?5:n===4&&!long?2:0;
+ if(points<1500)return n<=3?5:n===4?3:0;
+ if(points<3000)return n<=3?4:n===4?4:n<=6?2:0;
+ if(points<6000)return n<=3?3:n===4?4:n<=6?3:1;
+ return n<=3?2:n===4?3:n<=6?4:3;
+}
+function chooseShape(options){const total=options.reduce((sum,s)=>sum+shapeWeight(s),0);let ticket=Math.random()*total;for(const s of options){ticket-=shapeWeight(s);if(ticket<0)return s}return options[options.length-1]}
+function makePiece(){const options=SHAPES.filter(s=>shapeWeight(s)>0);return {shape:chooseShape(options),color:COLORS[Math.floor(Math.random()*COLORS.length)]}}
+function deal(){hand=Array.from({length:3},makePiece);if(!hand.some(p=>canRotatePlace(p.shape))){const options=SHAPES.filter(s=>shapeWeight(s)>0&&canRotatePlace(s));if(options.length)hand[0]={shape:chooseShape(options),color:COLORS[0]}}}
 function save(){write('blue-block-state',{grid,hand,score,combo,misses,ended})}
 function draw(){cells.forEach((el,i)=>{el.className='cell'+(grid[i]?' block':'');el.style.setProperty('--color',grid[i]||'');el.setAttribute('aria-label',`${Math.floor(i/8)+1}행 ${i%8+1}열 ${grid[i]?'채워짐':'비어 있음'}`)});$('#score').textContent=score.toLocaleString();$('#best').textContent=best.toLocaleString();trayEl.replaceChildren();hand.forEach((p,i)=>{const wrap=document.createElement('div');wrap.className='piece-wrap';const slot=document.createElement('button');slot.className='slot'+(!p?' used':'')+(selected===i?' selected':'');slot.setAttribute('aria-label',p?`${i+1}번 블록, ${p.shape.length}칸, 누르면 회전`:'사용한 블록');if(p){slot.append(pieceEl(p,Math.min(22,(boardEl.getBoundingClientRect().width/3-30)/4)));slot.addEventListener('pointerdown',e=>startDrag(e,i));slot.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();rotatePiece(i)}})}wrap.append(slot);trayEl.append(wrap)})}
 function pieceEl(p,size){const el=document.createElement('div');el.className='piece';const w=Math.max(...p.shape.map(c=>c[0]))+1,h=Math.max(...p.shape.map(c=>c[1]))+1;el.style.gridTemplateColumns=`repeat(${w},${size}px)`;el.style.gridTemplateRows=`repeat(${h},${size}px)`;p.shape.forEach(([x,y])=>{const b=document.createElement('div');b.className='block';b.style.cssText=`--color:${p.color};grid-column:${x+1};grid-row:${y+1};width:${size}px;height:${size}px`;el.append(b)});return el}
