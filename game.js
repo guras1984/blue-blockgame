@@ -53,9 +53,9 @@ window.addEventListener('pointercancel',()=>{if(drag){drag.el.remove();drag=null
 boardEl.addEventListener('pointermove',e=>{if(drag||selected===null||busy||ended)return;const r=boardEl.getBoundingClientRect(),step=(r.width-44)/8+4;preview(selected,Math.floor((e.clientX-r.left-8)/step),Math.floor((e.clientY-r.top-8)/step))});
 boardEl.addEventListener('pointerleave',()=>{if(!drag)clearGhost()});
 boardEl.addEventListener('click',e=>{if(selected===null||busy||ended||drag)return;const r=boardEl.getBoundingClientRect(),step=(r.width-16-28)/8+4;const x=Math.floor((e.clientX-r.left-8)/step),y=Math.floor((e.clientY-r.top-8)/step);if(hand[selected]&&fits(hand[selected].shape,x,y))place(selected,x,y)});
-// Compact each column downward, preserving the order and color of its cells.
-function applyGravity(board){const moves=[];for(let x=0;x<8;x++){let bottom=7;for(let y=7;y>=0;y--){const from=y*8+x;if(!board[from])continue;const to=bottom*8+x;if(to!==from){board[to]=board[from];board[from]=null;moves.push({from,to,distance:bottom-y})}bottom--}}return moves}
-async function fall(){const moves=applyGravity(grid);draw();const step=cells[8].getBoundingClientRect().top-cells[0].getBoundingClientRect().top;for(const m of moves){cells[m.to].style.setProperty('--fall',`${-m.distance*step}px`);cells[m.to].classList.add('falling')}if(moves.length){tone(300);await new Promise(r=>setTimeout(r,320))}return moves.length}
+// Remove cleared rows as whole rows; keep every remaining gap and horizontal position.
+function applyGravity(board,clearedRows){const removed=new Set(clearedRows),next=Array(64).fill(null),moves=[];let target=7;for(let y=7;y>=0;y--){if(removed.has(y))continue;for(let x=0;x<8;x++){const from=y*8+x,to=target*8+x;next[to]=board[from];if(board[from]&&to!==from)moves.push({from,to,distance:target-y})}target--}for(let n=0;n<64;n++)board[n]=next[n];return moves}
+async function fall(rows){const moves=applyGravity(grid,rows);draw();const step=cells[8].getBoundingClientRect().top-cells[0].getBoundingClientRect().top;for(const m of moves){cells[m.to].style.setProperty('--fall',`${-m.distance*step}px`);cells[m.to].classList.add('falling')}if(moves.length){tone(300);await new Promise(r=>setTimeout(r,320))}return moves.length}
 async function place(i,x,y){
  if(busy||!hand[i]||!fits(hand[i].shape,x,y))return;
  busy=true;const p=hand[i];p.shape.forEach(([dx,dy])=>grid[(y+dy)*8+x+dx]=p.color);score+=p.shape.length;hand[i]=null;selected=null;draw();tone();vibrate(12);
@@ -67,7 +67,7 @@ async function place(i,x,y){
  cleared.forEach(n=>cells[n].classList.add('clear'));burst(cleared,p.color);clearEffects(rows,cols);vibrate([20,30,35]);boardEl.classList.remove('impact');void boardEl.offsetWidth;boardEl.classList.add('impact');
  await new Promise(r=>setTimeout(r,430));cleared.forEach(n=>grid[n]=null);
  if(mode!=='gravity')break;
- await fall();
+ await fall(rows);
  }
  if(!clearedAny){await new Promise(r=>setTimeout(r,170));if(++misses>=3)combo=0}
  if(hand.every(p=>!p))deal();if(score>best){best=score;write(bestKey(),best)}
@@ -85,6 +85,6 @@ const state=read(stateKey(),mode==='classic'?read('blue-block-state',null):null)
 
 $('#settings').onclick=()=>{
  if(busy||drag)return;
- show(`<h2>설정</h2><fieldset class="mode-options"><legend>게임 모드</legend><label><input type="radio" name="mode" value="classic" ${mode==='classic'?'checked':''}><span><b>기본 모드</b><small>줄을 지워도 나머지 블록은 그대로 남아요.</small></span></label><label><input type="radio" name="mode" value="gravity" ${mode==='gravity'?'checked':''}><span><b>내려오기 모드</b><small>줄을 지우면 위 블록이 아래로 떨어져요.<br>새로 완성된 줄은 연쇄로 지워져요.</small></span></label></fieldset><p class="mode-warning">다른 모드로 바꾸면 새 게임이 시작됩니다.<br>최고 기록은 모드별로 저장됩니다.</p><button id="applyMode">선택한 모드로 시작</button>`,'닫기');
+ show(`<h2>설정</h2><fieldset class="mode-options"><legend>게임 모드</legend><label><input type="radio" name="mode" value="classic" ${mode==='classic'?'checked':''}><span><b>기본 모드</b><small>줄을 지워도 나머지 블록은 그대로 남아요.</small></span></label><label><input type="radio" name="mode" value="gravity" ${mode==='gravity'?'checked':''}><span><b>내려오기 모드</b><small>가로줄을 지우면 위쪽 줄이 통째로 내려와요.<br>기존 빈칸은 유지돼요. 세로줄은 제거만 해요.</small></span></label></fieldset><p class="mode-warning">다른 모드로 바꾸면 새 게임이 시작됩니다.<br>최고 기록은 모드별로 저장됩니다.</p><button id="applyMode">선택한 모드로 시작</button>`,'닫기');
  $('#applyMode').onclick=()=>{const choice=$('input[name="mode"]:checked').value;if(choice===mode){$('#modal').close();return}mode=choice;write('blue-block-mode',mode);best=read(bestKey(),0);$('#modal').close();newGame()};
 };
